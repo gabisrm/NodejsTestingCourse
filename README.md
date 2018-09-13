@@ -272,3 +272,145 @@ LIBRERIAS ADICIONALES:
 
                     ....
                     expect(spy).to.have.been.calledOnce;
+
+            Stub: es parecido a un spy. En realidad se podría realizxar el mismo test de antes con un stub:
+                it('should stub console.warn', () => {
+                    let stub = sinon.stub(console, 'warn');
+
+                    demo.foo(); //al pasar console.warn como stub, no se llamará en demo.foo()!! se sustituirá la llamada por la del stub
+                    expect(stub).to.have.been.calledOnce;
+                });
+
+            La diferencia es que en este caso, el stub hace que NO se llame a console.warn!! El stub sustituye esa función en el código por la suya.
+            Con el stub se puede hacer que también haga llamadas cuando fuera invocado. Ej:
+                let stub = sinon.stub(console, 'warn').callsFake(() => {console.log('message from stub')});
+                let createStub = sinon.stub(demo, 'createFile').resolves('crete_stub');
+
+            Esto es muy util por ejemplo para simular llamadas a BBDD => se haría un stub de esa llamada, y callsFake devolvería un objeto simulado, para simular coger un objeto de BBDD.
+
+            Para stub también hay que hacerle un stub.restore() al final!!
+
+            Se usan más stubs que spies.
+
+    
+        Por otro lado, sinon ofrece 'Sandboxes', que basicamente es un sandbox => Sandboxes removes the need to keep track of every fake created, which greatly simplifies cleanup. (https://sinonjs.org/releases/v2.0.0/sandbox/)
+
+        Ej:
+            var sinon = require('sinon');
+
+            var myAPI = { myMethod: function () {} };
+            var sandbox = sinon.sandbox.create();
+
+            describe('myAPI.hello method', function () {
+
+                beforeEach(function () {
+                    // stub out the `hello` method
+                    sandbox.stub(myApi, 'hello');
+                });
+
+                afterEach(function () {
+                    // completely restore all fakes created through the sandbox
+                    sandbox.restore();
+                });
+
+                it('should be called once', function () {
+                    myAPI.hello();
+                    sinon.assert.calledOnce(myAPI.hello);
+                });
+
+                it('should be called twice', function () {
+                    myAPI.hello();
+                    myAPI.hello();
+                    sinon.assert.calledTwice(myAPI.hello);
+                });
+            });
+
+    REWIRE:  (https://www.npmjs.com/package/rewire)
+        Actúa como un require() al importar un módulo. Lo que lo diferencia es que rewire permite cambiar las variables privadas de ese módulo (por ejemplo urls en el módulo de BBDD). Ej, tengo el siguiente módulo que quiero testear:
+
+            var fs = require("fs"),
+            path = "/somewhere/on/the/disk";
+        
+        function readSomethingFromFileSystem(cb) {
+            console.log("Reading from file system ...");
+            fs.readFile(path, "utf8", cb);
+        }
+        
+        exports.readSomethingFromFileSystem = readSomethingFromFileSystem;
+
+        Solo la función es exportada; no tengo acceso a la variable path. En testeo por ejemplo me gustaría que el path fuera otro, para simular datos. Para eso se usa rewire => importo el módulo con rewire: 
+
+            // test/myModule.test.js
+            var rewire = require("rewire");
+
+            var myModule = rewire("../lib/myModule.js");
+
+        Rewire importará además un setter y getter especial para modificar las variables privadas de ese mḉodulo, por lo que se puede modificar la vaiable 'path' => 
+
+            myModule.__set__("path", "/dev/null");
+            myModule.__get__("path"); // = '/dev/null'
+
+        Rewire me permitiría incluso cambiar del ejemplo anterior el módulo 'fs' => 
+
+            var fsMock = {
+                readFile: function (path, encoding, cb) {
+                    expect(path).to.equal("/somewhere/on/the/disk");
+                    cb(null, "Success!");
+                }
+            };
+            myModule.__set__("fs", fsMock);
+            
+            myModule.readSomethingFromFileSystem(function (err, data) {
+                console.log(data); // = Success!
+            });
+
+        De esta manera hemos mockeado el módulo fs que también era privado!!!
+
+
+EJEMPLO DE PATRONES DE USO:
+
+- Hacer un Stub a una creación de una instancia de una clase. 
+    Ej: 
+
+        exports.create = function (data) {
+            if (!data || !data.email || !data.name) {
+                return Promise.reject(new Error('Invalid arguments'));
+            }
+
+            var user = new User(data);
+
+            return user.save().then((result) => {
+                return mailer.sendWelcomeEmail(data.email, data.name).then(() => {
+                    return {
+                        message: 'User created',
+                        userId: result.id
+                    };
+                });
+            }).catch((err) => {
+                return Promise.reject(err);
+            });
+        }
+
+    Este método llama internamente a un new User(), además de otras cosas. Se quiere poder aislar la creación de la instancia del test en sí, ya que la creación de la instancia no pertenece al testeo de la función create().
+
+    Para ello se usa rewire y sinon.stub(). Basicamente habría que usar rewire para sustituir la llamada a new User() por new FakeUser(), pero este FakeUser() debe tener un método save() que devuelva un resultado como mínimo. Dicho método se puede mockear con un stub() de sinon:
+
+
+    beforeEach(() => {
+        sampleUser = {
+            id: 123,
+            name: 'foo',
+            email: 'foo@bar.com'
+        }
+
+        saveStub = sandbox.stub().resolves(sampleUser);
+        FakeUserClass = sandbox.stub().returns({save: saveStub}); //tengo que añadirle el stub 'save' a Users, porque la función, tras instanciar, llama a ese método de la clase
+    
+        users.__set__('User', FakeUserClass); //sustituyo la clase User por FakeUserClass
+        result = await users.create(sampleUser);
+    });
+
+    Por otro lado, la llamada a emailer se puede hacer un stub => mailerStub = sandbox.stub(mailer, 'sendWelcomeEmail').resolves('fake_email');
+
+    Se puede testear que FakeUser se ha llamado con new así:
+    expect(FakeUserClass).to.have.been.calledWithNew;

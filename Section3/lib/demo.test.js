@@ -6,8 +6,9 @@ chai.use(chaiAsPromised);
 const sinon = require('sinon');
 const sinonChai = require('sinon-chai');
 chai.use(sinonChai);
+const rewire = require('rewire');
 
-var demo = require('./demo');
+var demo = rewire('./demo');
 
 describe('demo', () => {
     context('add', ()=> {
@@ -66,8 +67,28 @@ describe('demo', () => {
             spy.restore();
         });
 
-        it('', () => {
-            
+        it('should stub console.warn', () => {
+            let stub = sinon.stub(console, 'warn').callsFake(() => {console.log('message from stub')});
+
+            demo.foo(); //al pasar console.warn como stub, no se llamará en demo.foo()!! se sustituirá la llamada por la del stub
+            expect(stub).to.have.been.calledOnce;
+            stub.restore();
+        });
+    });
+
+    context('stub private functions', () => {
+        it('should stub createFile', async () => {
+            let createStub = sinon.stub(demo, 'createFile').resolves('crete_stub');
+            let callStub = sinon.stub().resolves('calldb_stub');
+
+            demo.__set__('callDB', callStub);
+
+            let result = await demo.bar('test.txt');
+
+            expect(result).to.equal('calldb_stub');
+            expect(createStub).to.have.been.calledOnce;
+            expect(createStub).to.have.been.calledWith('test.txt');
+            expect(callStub).to.have.been.calledOnce;
         });
     });
 });
