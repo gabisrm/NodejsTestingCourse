@@ -30,7 +30,8 @@ describe('users', () => {
         sampleUser = {
             id: 123,
             name: 'foo',
-            email: 'foo@bar.com'
+            email: 'foo@bar.com',
+            save: sandbox.stub().resolves()
         }
 
         //el metodo 'findById' se encuentra en mongoose.model. Toda llamada a 'findById' resolverá en el usuario sampleUser
@@ -149,6 +150,44 @@ describe('users', () => {
 
             await expect(users.create(sampleUser)).to.eventually.be.rejectedWith('fake');
         });
+    });
+
+    context('update user', () => {
+        it('should find user by id', async () => {
+            await users.update(123, {age: 35});
+
+            expect(findStub).to.have.been.calledWith(123);
+        });
+
+        it('should call user.save', async () => {
+            await users.update(123, {age:35});
+
+            expect(sampleUser.save).to.have.been.calledOnce;
+        });
+
+        it('should reject if there is an error',  async() => {
+            findStub.throws(new Error('fake')); //modificamos findStub para que ahora tire un error
+
+            await expect(users.update(123, {age: 35})).to.eventually.be.rejectedWith('fake');
+        });
+    });
+
+    context('reset password', () => {
+       let resetStub;
+       
+       beforeEach(() => {
+           resetStub = sandbox.stub(mailer, 'sendPasswordResetEmail').resolves('reset');
+       });
+
+       it('should check for email', async () => {
+           await expect(users.resetPassword()).to.eventually.be.rejectedWith('Invalid email');
+       });
+
+       it('should call sendPasswordResetEmail', async () => {
+           await users.resetPassword('foo@bar.com');
+
+           expect(resetStub).to.have.been.calledWith('foo@bar.com');
+       });
     });
 
 });
