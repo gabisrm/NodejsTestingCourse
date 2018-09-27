@@ -367,6 +367,8 @@ LIBRERIAS ADICIONALES:
         De esta manera hemos mockeado el módulo fs que también era privado!!!
 
 
+    SUPERTEST: para testear rutas/llamadas http
+
 EJEMPLO DE PATRONES DE USO:
 
 - Hacer un Stub a una creación de una instancia de una clase. 
@@ -418,9 +420,28 @@ EJEMPLO DE PATRONES DE USO:
 
 
 
+TEST de una clase:
+    Si hay que hacer cosas complejas en el constructor (llamadas a BBDD/ al sistema de archivos...), se haría como cualquier otra función, haciendole un stub. Y chequeamos que el stub se ha llamado con los parámetros esperados
 
 
 
+
+
+CODE COVERAGE:
+    Cuanto códuigo se comprueba con nuestros unit tests. Uno de los frameworks más usados es istanbuljs/nyc:
+        $ npm install --save-dev nyc
+
+    Una vez instalado, creamos en el package.json un nuevo script:
+
+        "script": {
+            ...
+            "coverage": "cross-env NODE_ENV=development nyc --reporter=text npm test"
+            ...
+        }
+
+    Esto llamará a npm test y comprobará la cobertura. la llamada a $ npm run coverage, devolverá una gráfica que nos indicará por cada archivo, cuanto se ha cubierto. Además devuelve las líneas de código que no se han cubierto.
+
+    EL coverage necesita que exista un archivo test por cada archivo de códuigo, ya que sino no contabiliza dicho archivo en el coverage!!!
 
 
 
@@ -444,3 +465,9 @@ SETUP:
 
 
     Con estos módulos se puede realizar la mayoría de los testings
+
+
+    OJO: el pattern para mocha a usar en npm test sería el siguiente:
+        mocha \"./{,!(node_modules)/**/}*.test.js\"
+
+        ya que asñi no coge los tests dentro de node_modules
